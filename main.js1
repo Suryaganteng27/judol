@@ -1,0 +1,9 @@
+// Fungsi Buka / Tutup Modal Cara Bermain
+function toggleHowToPlay(show) {
+    const modal = document.getElementById('how-to-play-modal');
+    if (show) {
+        modal.classList.remove('hidden-modal');
+    } else {
+        modal.classList.add('hidden-modal');
+    }
+}
