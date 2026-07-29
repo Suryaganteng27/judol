@@ -1,0 +1,428 @@
+// --- AUDIO SYSTEM (Web Audio API) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'hit') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+    } else if (type === 'pocket') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.25);
+    }
+}
+
+// --- GAME VARIABLES ---
+let scene, camera, renderer;
+let balls = [], cueBall, cueStick, aimLine;
+let pockets = [];
+let gameMode = 'pvp'; 
+let currentPlayer = 1;
+let level = 1;
+let score = 0;
+let timeLeft = 30;
+let timerInterval = null;
+let isMoving = false;
+
+// Variables untuk Pembidikan & Kekuatan
+let isAiming = false;
+let aimAngle = 0; // Sudut tembak (Rad)
+let power = 0;
+let powerBuilding = false;
+let powerDirection = 1;
+
+const TABLE_WIDTH = 10;
+const TABLE_LENGTH = 20;
+const BALL_RADIUS = 0.35;
+
+// --- INITIALIZE ENGINE ---
+function initEngine() {
+    const container = document.getElementById('canvas-container');
+    container.innerHTML = ''; // Clear jika ada canvas lama
+
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0e0e12);
+
+    // Camera
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 18, 14);
+    camera.lookAt(0, 0, 0);
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.SpotLight(0xffffff, 1.2);
+    mainLight.position.set(0, 25, 0);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    scene.add(mainLight);
+
+    buildTable();
+    createPockets();
+    createBalls();
+    createCueStick();
+    createAimLine();
+
+    // Event Listeners
+    window.addEventListener('resize', onWindowResize);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+
+    animate();
+}
+
+// --- DESAIN MEJA & LUBANG ---
+function buildTable() {
+    // Karpet Meja Hijau
+    const tableGeo = new THREE.BoxGeometry(TABLE_WIDTH, 0.4, TABLE_LENGTH);
+    const tableMat = new THREE.MeshStandardMaterial({ color: 0x0a6b2d, roughness: 0.3 });
+    const table = new THREE.Mesh(tableGeo, tableMat);
+    table.position.y = -0.2;
+    table.receiveShadow = true;
+    scene.add(table);
+
+    // Pinggiran Kayu Meja
+    const borderMat = new THREE.MeshStandardMaterial({ color: 0x3d1c06, roughness: 0.2 });
+    
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(TABLE_WIDTH + 1.6, 0.6, 0.8), borderMat);
+    b1.position.set(0, 0.1, TABLE_LENGTH / 2 + 0.4); scene.add(b1);
+    
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(TABLE_WIDTH + 1.6, 0.6, 0.8), borderMat);
+    b2.position.set(0, 0.1, -TABLE_LENGTH / 2 - 0.4); scene.add(b2);
+
+    const b3 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, TABLE_LENGTH), borderMat);
+    b3.position.set(TABLE_WIDTH / 2 + 0.4, 0.1, 0); scene.add(b3);
+
+    const b4 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, TABLE_LENGTH), borderMat);
+    b4.position.set(-TABLE_WIDTH / 2 - 0.4, 0.1, 0); scene.add(b4);
+}
+
+function createPockets() {
+    pockets = [
+        new THREE.Vector3(-TABLE_WIDTH/2 + 0.2, 0, -TABLE_LENGTH/2 + 0.2),
+        new THREE.Vector3(TABLE_WIDTH/2 - 0.2, 0, -TABLE_LENGTH/2 + 0.2),
+        new THREE.Vector3(-TABLE_WIDTH/2 + 0.2, 0, 0),
+        new THREE.Vector3(TABLE_WIDTH/2 - 0.2, 0, 0),
+        new THREE.Vector3(-TABLE_WIDTH/2 + 0.2, 0, TABLE_LENGTH/2 - 0.2),
+        new THREE.Vector3(TABLE_WIDTH/2 - 0.2, 0, TABLE_LENGTH/2 - 0.2)
+    ];
+
+    const pocketGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.42, 32);
+    const pocketMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
+
+    pockets.forEach(pos => {
+        const pocket = new THREE.Mesh(pocketGeo, pocketMat);
+        pocket.position.copy(pos);
+        pocket.position.y = -0.18;
+        scene.add(pocket);
+    });
+}
+
+// --- BOLA & TONGKAT ---
+function createBalls() {
+    balls = [];
+    const sphereGeo = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+
+    // Cue Ball (Putih)
+    const cueMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+    cueBall = new THREE.Mesh(sphereGeo, cueMat);
+    cueBall.position.set(0, BALL_RADIUS, 5);
+    cueBall.castShadow = true;
+    cueBall.velocity = new THREE.Vector3();
+    cueBall.isCue = true;
+    scene.add(cueBall);
+
+    // Bola Warna
+    const colors = [0xff2222, 0xffcc00, 0x2222ff, 0xaa00aa, 0xff7700, 0x00aa22, 0x880000];
+    let idx = 0;
+
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col <= row; col++) {
+            const mat = new THREE.MeshStandardMaterial({ color: colors[idx % colors.length], roughness: 0.1 });
+            const ball = new THREE.Mesh(sphereGeo, mat);
+            ball.position.set((col - row / 2) * (BALL_RADIUS * 2.1), BALL_RADIUS, -3 - (row * BALL_RADIUS * 2));
+            ball.castShadow = true;
+            ball.velocity = new THREE.Vector3();
+            ball.isCue = false;
+            balls.push(ball);
+            scene.add(ball);
+            idx++;
+        }
+    }
+}
+
+function createCueStick() {
+    const cueGeo = new THREE.CylinderGeometry(0.04, 0.12, 9);
+    const cueMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c });
+    cueStick = new THREE.Mesh(cueGeo, cueMat);
+    cueStick.castShadow = true;
+    scene.add(cueStick);
+}
+
+function createAimLine() {
+    const points = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -10)];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMat = new THREE.LineDashedMaterial({ color: 0x00ffcc, dashSize: 0.3, gapSize: 0.2 });
+    aimLine = new THREE.Line(lineGeo, lineMat);
+    aimLine.computeLineDistances();
+    scene.add(aimLine);
+}
+
+// --- KONTROL MOUSE & PEMBIDIKAN ---
+function onMouseMove(event) {
+    if (isMoving || (gameMode === 'cpu' && currentPlayer === 'Computer')) return;
+
+    // Hitung sudut bidikan dari posisi mouse relatif ke tengah layar
+    const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+    aimAngle = mouseX * Math.PI * 0.8; 
+}
+
+function onMouseDown() {
+    if (isMoving || (gameMode === 'cpu' && currentPlayer === 'Computer')) return;
+    powerBuilding = true;
+    power = 0;
+    document.getElementById('power-bar-container').classList.remove('hidden');
+}
+
+function onMouseUp() {
+    if (!powerBuilding) return;
+    powerBuilding = false;
+    document.getElementById('power-bar-container').classList.add('hidden');
+    shootCueBall();
+}
+
+// --- TEMBAKAN & BOT COMPUTER ---
+function shootCueBall() {
+    const force = (power / 100) * 0.85 + 0.15;
+    cueBall.velocity.x = Math.sin(aimAngle) * force;
+    cueBall.velocity.z = -Math.cos(aimAngle) * force;
+
+    playSound('hit');
+    isMoving = true;
+    aimLine.visible = false;
+    cueStick.visible = false;
+}
+
+function playComputerTurn() {
+    showNotification("Computer sedang membidik...");
+    setTimeout(() => {
+        aimAngle = (Math.random() - 0.5) * 1.2;
+        power = 50 + Math.random() * 40;
+        shootCueBall();
+    }, 1500);
+}
+
+// --- FISIKA & TABRAKAN ---
+function updatePhysics() {
+    let moving = false;
+
+    const allBalls = [cueBall, ...balls];
+
+    // Pergerakan Bola & Gesekan Meja
+    allBalls.forEach(ball => {
+        if (!ball) return;
+
+        if (ball.velocity.length() > 0.002) {
+            ball.position.add(ball.velocity);
+            ball.velocity.multiplyScalar(0.985); // Gesekan
+            moving = true;
+
+            // Memantul dari Dinding Meja
+            const minX = -TABLE_WIDTH/2 + BALL_RADIUS;
+            const maxX = TABLE_WIDTH/2 - BALL_RADIUS;
+            const minZ = -TABLE_LENGTH/2 + BALL_RADIUS;
+            const maxZ = TABLE_LENGTH/2 - BALL_RADIUS;
+
+            if (ball.position.x < minX || ball.position.x > maxX) {
+                ball.velocity.x *= -0.8;
+                ball.position.x = THREE.MathUtils.clamp(ball.position.x, minX, maxX);
+                playSound('hit');
+            }
+            if (ball.position.z < minZ || ball.position.z > maxZ) {
+                ball.velocity.z *= -0.8;
+                ball.position.z = THREE.MathUtils.clamp(ball.position.z, minZ, maxZ);
+                playSound('hit');
+            }
+        } else {
+            ball.velocity.set(0, 0, 0);
+        }
+    });
+
+    // Tabrakan Antar Bola
+    for (let i = 0; i < allBalls.length; i++) {
+        for (let j = i + 1; j < allBalls.length; j++) {
+            const b1 = allBalls[i];
+            const b2 = allBalls[j];
+            if (!b1 || !b2) continue;
+
+            const dist = b1.position.distanceTo(b2.position);
+            if (dist < BALL_RADIUS * 2) {
+                playSound('hit');
+
+                // Pemisahan Sederhana
+                const normal = b1.position.clone().sub(b2.position).normalize();
+                const relativeVelocity = b1.velocity.clone().sub(b2.velocity);
+                const speed = relativeVelocity.dot(normal);
+
+                if (speed < 0) {
+                    const impulse = normal.multiplyScalar(-speed * 0.9);
+                    b1.velocity.add(impulse);
+                    b2.velocity.sub(impulse);
+                }
+            }
+        }
+    }
+
+    // Deteksi Masuk Lubang (Pocket)
+    allBalls.forEach(ball => {
+        if (!ball) return;
+        pockets.forEach(pocket => {
+            if (ball.position.distanceTo(pocket) < 0.6) {
+                playSound('pocket');
+                if (ball.isCue) {
+                    // Bola Putih Masuk -> Reset Posisi
+                    showNotification("Foul! Bola Putih Masuk.");
+                    ball.position.set(0, BALL_RADIUS, 5);
+                    ball.velocity.set(0, 0, 0);
+                } else {
+                    // Bola Target Masuk
+                    scene.remove(ball);
+                    balls = balls.filter(b => b !== ball);
+                    score += 10;
+                    document.getElementById('score-display').innerText = score;
+                    showNotification("Bola Masuk! +10 Skor");
+
+                    if (balls.length === 0) {
+                        levelUp();
+                    }
+                }
+            }
+        });
+    });
+
+    // Update Stik dan Garis Bidikan jika Bola Berhenti
+    if (!moving && isMoving) {
+        isMoving = false;
+        aimLine.visible = true;
+        cueStick.visible = true;
+        switchTurn();
+    }
+
+    if (!isMoving) {
+        // Posisikan Stik & Garis Bidikan sesuai Arah
+        aimLine.position.copy(cueBall.position);
+        aimLine.rotation.y = aimAngle;
+
+        cueStick.position.copy(cueBall.position);
+        cueStick.rotation.y = aimAngle;
+        cueStick.rotation.x = Math.PI / 2 - 0.1;
+        cueStick.translateY(5.2 + (power / 100) * 1.5); // Stik mundur saat di-charge
+    }
+
+    // Animasi Meteran Kekuatan Pukulan
+    if (powerBuilding) {
+        power += 2 * powerDirection;
+        if (power >= 100 || power <= 0) powerDirection *= -1;
+        document.getElementById('power-bar-fill').style.width = power + '%';
+    }
+}
+
+// --- WAKTU & LEVEL ---
+function startTimer() {
+    clearInterval(timerInterval);
+    timeLeft = 30;
+    document.getElementById('timer-display').innerText = timeLeft;
+    
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = timeLeft;
+        
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            showNotification("Waktu Habis! Pindah Giliran.");
+            switchTurn();
+        }
+    }, 1000);
+}
+
+function switchTurn() {
+    if (gameMode === 'cpu') {
+        currentPlayer = currentPlayer === 1 ? 'Computer' : 1;
+        document.getElementById('turn-display').innerText = `Giliran: ${currentPlayer === 1 ? 'Player 1' : 'Computer'}`;
+        if (currentPlayer === 'Computer') {
+            playComputerTurn();
+        }
+    } else {
+        currentPlayer = currentPlayer === 1 ? 2 : 1;
+        document.getElementById('turn-display').innerText = `Giliran: Player ${currentPlayer}`;
+    }
+    startTimer();
+}
+
+function levelUp() {
+    level++;
+    document.getElementById('level-display').innerText = level;
+    showNotification(`LEVEL UP! Selamat Datang di Level ${level}`);
+    createBalls();
+}
+
+function showNotification(text) {
+    const notif = document.getElementById('notification');
+    notif.innerText = text;
+    notif.classList.remove('hidden');
+    setTimeout(() => notif.classList.add('hidden'), 2500);
+}
+
+// --- START & RENDER LOOP ---
+function startGame(mode) {
+    gameMode = mode;
+    score = 0;
+    level = 1;
+    document.getElementById('score-display').innerText = score;
+    document.getElementById('level-display').innerText = level;
+    document.getElementById('mode-display').innerText = `Mode: ${mode === 'cpu' ? 'VS Computer' : '2 Player'}`;
+    document.getElementById('menu-overlay').style.display = 'none';
+    
+    initEngine();
+    showNotification("Game Dimulai!");
+    startTimer();
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    updatePhysics();
+    renderer.render(scene, camera);
+}
