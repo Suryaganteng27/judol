@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 8-Ball Pool Game</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <!-- UI Overlay -->
+    <div id="ui-container">
+        <div id="header">
+            <div id="player-info">
+                <span id="turn-display">Giliran: Player 1</span>
+                <span id="mode-display">Mode: 2 Player</span>
+            </div>
+            <div id="game-stats">
+                <div>Level: <span id="level-display">1</span></div>
+                <div>Waktu: <span id="timer-display">30</span>s</div>
+            </div>
+        </div>
+
+        <div id="notification" class="hidden">Game Started!</div>
+
+        <!-- Menu Pilihan Game -->
+        <div id="menu-overlay">
+            <div class="menu-card">
+                <h1>8 Ball Pool 3D</h1>
+                <p>Pilih Mode Permainan:</p>
+                <button onclick="startGame('pvp')">2 Player (Lokal)</button>
+                <button onclick="startGame('cpu')">Lawan Computer (Bot)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container Canvas 3D -->
+    <div id="canvas-container"></div>
+
+    <script src="main.js"></script>
+</body>
+</html>
