@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 8-Ball Pool Game</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <!-- UI Overlay -->
+    <div id="ui-container">
+        <div id="header">
+            <div id="player-info">
+                <span id="turn-display">Giliran: Player 1</span>
+                <span id="mode-display">Mode: 2 Player</span>
+            </div>
+            <div id="game-stats">
+                <div>Level: <span id="level-display">1</span></div>
+                <div>Waktu: <span id="timer-display">30</span>s</div>
+            </div>
+        </div>
+
+        <div id="notification" class="hidden">Game Started!</div>
+
+        <!-- Menu Pilihan Game -->
+        <div id="menu-overlay">
+            <div class="menu-card">
+                <h1>8 Ball Pool 3D</h1>
+                <p>Pilih Mode Permainan:</p>
+                <button onclick="startGame('pvp')">🎮 2 Player (Lokal)</button>
+                <button onclick="startGame('cpu')">🤖 Lawan Computer (Bot)</button>
+                <button onclick="toggleHowToPlay(true)" class="btn-secondary">❓ Cara Bermain</button>
+            </div>
+        </div>
+
+        <!-- Modal Cara Bermain -->
+        <div id="how-to-play-modal" class="modal hidden-modal">
+            <div class="modal-content">
+                <h2>📖 Panduan Cara Bermain</h2>
+                <div class="guide-body">
+                    <h3>1. Kontrol Permainan</h3>
+                    <ul>
+                        <li><b>Klik Kiri Mouse / Tap Layar:</b> Memukul bola putih (Cue Ball) ke depan.</li>
+                        <li><b>Gerakan Mouse:</b> Membidik arah sodokan tongkat stik biliar.</li>
+                    </ul>
+
+                    <h3>2. Aturan & Mode Permainan</h3>
+                    <ul>
+                        <li><b>Mode 2 Player (Lokal):</b> Dua pemain bermain secara bergantian di satu perangkat yang sama.</li>
+                        <li><b>Mode Lawan Computer:</b> Anda bertanding melawan bot AI otomatis.</li>
+                        <li><b>Sistem Waktu (Timer):</b> Setiap giliran memiliki batas waktu **30 detik**. Jika waktu habis, giliran otomatis berpindah ke lawan!</li>
+                        <li><b>Kenaikan Level:</b> Setiap kali berhasil memasukkan bola, level permainan akan meningkat.</li>
+                    </ul>
+
+                    <h3>3. Efek Suara (Audio)</h3>
+                    <ul>
+                        <li>Suara benturan bola realistis (*Hit*) saat stik memukul bola atau saat bola saling bertabrakan.</li>
+                        <li>Suara efek khusus saat bola berhasil masuk ke dalam kantung (*Pocket*).</li>
+                    </ul>
+                </div>
+                <button onclick="toggleHowToPlay(false)" class="btn-close">Tutup Panduan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container Canvas 3D -->
+    <div id="canvas-container"></div>
+
+    <script src="main.js"></script>
+</body>
+</html>
