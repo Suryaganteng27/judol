@@ -1,0 +1,76 @@
+/* Modal Cara Bermain */
+.modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    pointer-events: auto;
+}
+
+.hidden-modal {
+    display: none !important;
+}
+
+.modal-content {
+    background: #1a1a24;
+    border: 2px solid #00ffcc;
+    border-radius: 12px;
+    padding: 25px 30px;
+    max-width: 500px;
+    width: 90%;
+    color: #ffffff;
+    box-shadow: 0 0 25px rgba(0, 255, 204, 0.3);
+}
+
+.modal-content h2 {
+    color: #00ffcc;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.guide-body h3 {
+    color: #ffcc00;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-size: 1.1rem;
+}
+
+.guide-body ul {
+    list-style-type: square;
+    padding-left: 20px;
+    color: #dddddd;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.btn-secondary {
+    background: #444455 !important;
+    margin-top: 15px !important;
+}
+
+.btn-secondary:hover {
+    background: #555566 !important;
+}
+
+.btn-close {
+    width: 100%;
+    padding: 10px;
+    margin-top: 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-close:hover {
+    background: #c0392b;
+}
